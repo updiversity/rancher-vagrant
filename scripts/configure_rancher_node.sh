@@ -3,8 +3,7 @@ rancher_server_ip=${1:-172.22.101.100}
 orchestrator=${2:-cattle}
 network_type=${3:-false}
 sslenabled=${4:-false}
-ssldns=${5:-server.rancher.vagrant}
-cache_ip=${6:-172.22.101.100}
+cache_ip=${5:-172.22.101.100}
 
 curlprefix="appropriate"
 if [ "$sslenabled" == 'true' ]; then
@@ -30,8 +29,8 @@ if [ ! "$network_type" == "airgap" ] ; then
   ros config set rancher.system_docker.registry_mirror "http://$cache_ip:4000"
   ros config set rancher.docker.host "['unix:///var/run/docker.sock', 'tcp://0.0.0.0:2375']"
   if [ "$network_type" == "isolated" ]; then
-    ros config set rancher.docker.environment "['http_proxy=http://$cache_ip:3128','https_proxy=http://$cache_ip:3128','HTTP_PROXY=http://$cache_ip:3128','HTTPS_PROXY=http://$cache_ip:3128','no_proxy=server.rancher.vagrant,localhost,127.0.0.1','NO_PROXY=server.rancher.vagrant,localhost,127.0.0.1']"
-    ros config set rancher.system_docker.environment "['http_proxy=http://$cache_ip:3128','https_proxy=http://$cache_ip:3128','HTTP_PROXY=http://$cache_ip:3128','HTTPS_PROXY=http://$cache_ip:3128','no_proxy=server.rancher.vagrant,localhost,127.0.0.1','NO_PROXY=server.rancher.vagrant,localhost,127.0.0.1']"
+    ros config set rancher.docker.environment "['http_proxy=http://$cache_ip:3128','https_proxy=http://$cache_ip:3128','HTTP_PROXY=http://$cache_ip:3128','HTTPS_PROXY=http://$cache_ip:3128','no_proxy=localhost,127.0.0.1','NO_PROXY=localhost,127.0.0.1']"
+    ros config set rancher.system_docker.environment "['http_proxy=http://$cache_ip:3128','https_proxy=http://$cache_ip:3128','HTTP_PROXY=http://$cache_ip:3128','HTTPS_PROXY=http://$cache_ip:3128','no_proxy=localhost,127.0.0.1','NO_PROXY=localhost,127.0.0.1']"
   fi
 fi
 
@@ -61,17 +60,23 @@ tRubyXjH+dQQftBUuzwULwwKGL0le7o/vA==
 -----END CERTIFICATE-----" > /var/lib/rancher/etc/ssl/ca.crt
 fi
 
+ros config set rancher.network.dns.nameservers ["'$cache_ip'"]
+system-docker restart network
+
 if [ "$network_type" == "isolated" ] || [ "$network_type" == "airgap" ] ; then
-  ros config set rancher.network.dns.nameservers ["'$cache_ip'"]
-  system-docker restart network
   route add default gw $cache_ip
 fi
 
 if [ "$sslenabled" == 'true' ]; then
-  ros config set rancher.network.dns.nameservers ["'$cache_ip'"]
-  system-docker restart network
   mkdir -p /var/lib/rancher/etc/ssl
   cp /home/rancher/ca.crt /var/lib/rancher/etc/ssl/ca.crt
+fi
+
+if [ -z "${RANCHER_ACCESS_KEY}" ] || [ -z "${RANCHER_SECRET_KEY}" ]; then
+  echo Using Rancher API without Key
+  rancher_api_auth=""
+else
+  rancher_api_auth="-u ${RANCHER_ACCESS_KEY}:${RANCHER_SECRET_KEY}"
 fi
 
 while true; do
@@ -79,6 +84,7 @@ while true; do
     -v /tmp:/tmp \
     --rm \
     $curlprefix/curl \
+      $rancher_api_auth \
       -sLk \
       "$protocol://$rancher_server_ip/v2-beta/project?name=$orchestrator" | jq '.data[0].id' | tr -d '"')
 
@@ -96,6 +102,7 @@ docker run \
   -v /tmp:/tmp \
   --rm \
   $curlprefix/curl \
+    $rancher_api_auth \
     -sLk \
     -X POST \
     -H 'Content-Type: application/json' \
@@ -107,6 +114,7 @@ docker run \
   -v /tmp:/tmp \
   --rm \
   $curlprefix/curl \
+    $rancher_api_auth \
     -sLk \
     "$protocol://$rancher_server_ip/v2-beta/projects/$ENV_ID/registrationtokens/?state=active" |
       jq -r .data[].command |

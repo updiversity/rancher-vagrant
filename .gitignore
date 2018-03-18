@@ -3,3 +3,4 @@ registry
 vagrantup.bat
 /vault
 /certs/localrancher*
+config.yaml

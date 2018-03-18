@@ -1,3 +1,17 @@
+This repository has been forked from https://github.com/rancher/vagrant with some changes in the variables :
+
+**dnstld**
+
+This set the top level domain the DNS server deployed on the master will deserve.
+
+**bridge**
+
+in case of public network, you can specify which interface the virtual machine should bridge to
+
+**gateway**
+
+in case of public network, you can specify which gateway the virtual machine should use
+
 # localranchervagrant
 ![Pretty Picture](https://github.com/chrisurwin/localranchervagrant/blob/master/localranchervagrant.PNG)
 
@@ -23,9 +37,9 @@ This has been tested with vagrant 1.9.1 and VirtualBox 5.0.32. If you experience
 
 The config.yml contains any variables that you should need to change, below is a description of the variables and their values:
 
-**orchestrator** - Possible values are `cattle`, `kubernetes`, `mesos` and `swarm` 
+**orchestrator** - Possible values are `cattle`, `kubernetes`, `mesos` and `swarm`
 
-This sets the orchestrator that will be used for the environment, as part of the process the Default environment is deleted and we create a new one with the name of the orchestrator. 
+This sets the orchestrator that will be used for the environment, as part of the process the Default environment is deleted and we create a new one with the name of the orchestrator.
 
 **network_mode** - Possible values are `isolated`, `airgap` and `normal`
 

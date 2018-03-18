@@ -13,11 +13,11 @@ start on stopped rc
 stop on runlevel [016]
 
 pre-start script
-    cd ${VAGRANTBOXPATH}
-    su -c "/usr/bin/vagrant up" ${VAGRANTUSR}
+    cd \${VAGRANTBOXPATH}
+    su -c \"/usr/bin/vagrant up\" \${VAGRANTUSR}
 end script
 
 post-stop script
-    cd ${VAGRANTBOXPATH}
-    su -c "/usr/bin/vagrant halt" ${VAGRANTUSR}
+    cd \${VAGRANTBOXPATH}
+    su -c \"/usr/bin/vagrant halt\" \${VAGRANTUSR}
 end script" | sudo tee --append /etc/init/upstart-vagrant-rancher.conf

@@ -232,10 +232,6 @@ options {
         dnssec-enable no;
         dnssec-validation no;
 
-        forwarders {
-                192.168.1.222;
-        };
-
         auth-nxdomain no;    # conform to RFC1035
         listen-on-v6 { any; };
 };" > /root/bind.conf

@@ -35,7 +35,7 @@ Vagrant.configure(2) do |config|
     if x.fetch('sslenabled')
        master.vm.provision "file", source: "./certs/haproxy.crt", destination: "/home/vagrant/haproxy.crt"
     end
-    master.vm.provision "script", type: :shell, path: "scripts/master.sh", args: [x.fetch('network_mode'),x.fetch('sslenabled'),x.fetch('ip').fetch('server'),x.fetch('server').fetch('count'),x.fetch('ip').fetch('master'),x.fetch('version'),
+    master.vm.provision "shell", path: "scripts/master.sh", args: [x.fetch('network_mode'),x.fetch('sslenabled'),x.fetch('ip').fetch('server'),x.fetch('server').fetch('count'),x.fetch('ip').fetch('master'),x.fetch('version'),
       x.fetch('dnstld')]
     if File.file?(x.fetch('keys').fetch('private_key'))
        master.vm.provision "file", source: x.fetch('keys').fetch('private_key'), destination: "/home/vagrant/.ssh/id_rsa"
@@ -58,6 +58,7 @@ Vagrant.configure(2) do |config|
     hostname = "server-%02d" % i
     config.vm.define hostname do |server|
       server.vm.box= "chrisurwin/RancherOS"
+      server.vm.box_version = x.fetch('ROS_version')
       server.vm.guest = :linux
       server.vm.provider :virtualbox do |v|
         v.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]

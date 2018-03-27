@@ -35,7 +35,7 @@ ip:
 linked_clones: true
 net:
   private_nic_type: 82545EM
-  network_type: private_network
+  network_type: public_network
   bridge: "Killer Wireless-n/a/ac 1535 Wireless Network Adapter #2"
   gateway: 192.168.1.1
   network: 192.168.1.0

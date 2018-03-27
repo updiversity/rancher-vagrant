@@ -59,6 +59,7 @@ Vagrant.configure(2) do |config|
       server.vbguest.auto_update = false
       server.ssh.private_key_path = File.expand_path(x.fetch('keys').fetch('private_key'))
       server.vm.box= x.fetch('ROS_box')
+      server.vm.box_version = x.fetch('ROS_box_version')
       server.vm.guest = :linux
       server.vm.synced_folder ".", "/vagrant", disabled: true
       server.vm.provider :virtualbox do |v|
@@ -101,6 +102,7 @@ Vagrant.configure(2) do |config|
       node.vbguest.auto_update = false
       node.ssh.private_key_path = File.expand_path(x.fetch('keys').fetch('private_key'))
       node.vm.box= x.fetch('ROS_box')
+      node.vm.box_version = x.fetch('ROS_box_version')
       node.vm.guest = :linux
       node.vm.provider "virtualbox" do |v|
         v.cpus = c.fetch('cpus')

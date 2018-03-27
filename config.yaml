@@ -11,7 +11,7 @@ tld: 'updiversity.org'
 version: v1.6.15
 #Pass through environment variables for Rancher Server to start with
 rancher_env_vars: ""
-ROS_box: "rancherOS"
+ROS_box: "updiversity/rancheros"
 master:
   cpus: 1
   memory: 1024

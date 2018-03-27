@@ -5,8 +5,8 @@ rancher_server_ip=${3:-172.22.101.101}
 rancher_server_node=${4:-1}
 cache_ip=${5:-172.22.101.100}
 rancher_server_version=${6:-latest}
-password=${7:-rancher}
-
+tld=${7:-rancher.vagrant}
+password=${8:-rancher}
 
 apt-get update
 apt-get install jq
@@ -104,7 +104,7 @@ docker run \
   mysql:5.7.18
 
 if [ $? -eq 0 ]; then
-  sleep 15
+  sleep 30
   echo Creating database
   docker exec -i mysql \
     mysql \
@@ -213,6 +213,7 @@ docker run -d -p 5000:5000 --restart=always --name registry  -v  $share_path/reg
 #Run local proxy
 if [ "$network_mode" == "isolated" ] || [ "$network_mode" == "airgap" ] || [ "$sslenabled" == 'true' ]; then
     docker run -d --restart=always --name proxy -p 3128:3128 minimum2scp/squid
+fi
 
 #Setup dns proxy
 echo    "
@@ -228,39 +229,38 @@ options {
         recursion yes;
         allow-query { goodclients; };
 
-        dnssec-validation auto;
+        forwarders {
+          8.8.8.8;
+          8.8.4.4;
+        };
+
+        dnssec-enable no;
+        dnssec-validation no;
 
         auth-nxdomain no;    # conform to RFC1035
         listen-on-v6 { any; };
 };" > /root/bind.conf
 
-echo "        zone \"rancher.vagrant\" {
+echo "        zone \"rancher.$tld\" {
              type master;
-             file \"/etc/bind/db.rancher.vagrant\";
+             file \"/etc/bind/db.rancher.$tld\";
         };" > /root/named.conf.local
 
 echo ";
 ; BIND data file for local loopback interface
 ;
 \$TTL    604800
-@       IN      SOA     ns.rancher.vagrant. root.rancher.vagrant. (
+@       IN      SOA     rancher.$tld. admin.rancher.$tld. (
                               1         ; Serial
                          604800         ; Refresh
                           86400         ; Retry
                         2419200         ; Expire
                          604800 )       ; Negative Cache TTL
 ;
-@       IN      NS      rancher.vagrant.
-@       IN      A       127.0.0.1
-@       IN      AAAA    ::1
-@       IN      NS      ns.rancher.vagrant.
-ns      IN      A       $cache_ip
+@       IN      NS      rancher.$tld.
+rancher.$tld.     IN      A       $cache_ip" > /root/db.rancher.$tld
 
-;also list other computers
-server     IN      A       $cache_ip" > /root/db.rancher.vagrant
-
-    docker run -d --restart=always --name bind9 -p 53:53 -p 53:53/udp -v /root/named.conf.local:/etc/bind/named.conf.local -v /root/bind.conf:/etc/bind/named.conf -v /root/db.rancher.vagrant:/etc/bind/db.rancher.vagrant resystit/bind9:latest
-fi
+docker run -d --restart=always --name bind9 -p 53:53 -p 53:53/udp -v /root/named.conf.local:/etc/bind/named.conf.local -v /root/bind.conf:/etc/bind/named.conf -v /root/db.rancher.$tld:/etc/bind/db.rancher.$tld resystit/bind9:latest
 
 if [ "$network_mode" == "airgap" ] ; then
 
@@ -291,7 +291,7 @@ curl -Ss  "http://localhost:7070/images/$rancher_server_version" | jq -r '.image
     docker pull rancher/server:$rancher_server_version
     docker tag rancher/server:$rancher_server_version $cache_ip:5000/rancher/server:$rancher_server_version
     docker push $cache_ip:5000/rancher/server:$rancher_server_version
-  fi 
+  fi
   exists=$(curl -Ss http://$cache_ip:5000/v2/rancher/agent/tags/list | jq -r '.tags' | grep v1.2.5)
   if [ "${#exists}" -gt "2" ]; then
     echo "Image rancher/agent:v1.2.5 already in local cache"
@@ -299,7 +299,7 @@ curl -Ss  "http://localhost:7070/images/$rancher_server_version" | jq -r '.image
     docker pull rancher/agent:v1.2.5
     docker tag rancher/agent:v1.2.5 $cache_ip:5000/rancher/agent:v1.2.5
     docker push $cache_ip:5000/rancher/agent:v1.2.5
-  fi 
+  fi
   exists=$(curl -Ss http://$cache_ip:5000/v2/curl/tags/list | jq -r '.tags' | grep latest)
   if [ "${#exists}" -gt "2" ]; then
     echo "Image appropriate/curl  already in local cache"

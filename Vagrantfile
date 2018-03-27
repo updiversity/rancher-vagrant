@@ -16,7 +16,11 @@ Vagrant.configure(2) do |config|
     c = x.fetch('master')
     master.vm.box = "williamyeh/ubuntu-trusty64-docker"
     master.vm.guest = :ubuntu
-    master.vm.network x.fetch('net').fetch('network_type'), ip: x.fetch('ip').fetch('master'), nic_type: $private_nic_type    
+    if x.fetch('net').fetch('network_type') == "public_network"
+      master.vm.network x.fetch('net').fetch('network_type'), ip: x.fetch('ip').fetch('master'), nic_type: $private_nic_type,  bridge: x.fetch('net').fetch('bridge'), bootproto: 'static', gateway: x.fetch('net').fetch('gateway')
+    else
+      master.vm.network x.fetch('net').fetch('network_type'), ip: x.fetch('ip').fetch('master'), nic_type: $private_nic_type
+    end
     master.vm.provider :virtualbox do |v|
       v.cpus = c.fetch('cpus')
       v.memory = c.fetch('memory')
@@ -30,11 +34,12 @@ Vagrant.configure(2) do |config|
     if x.fetch('sslenabled')
        master.vm.provision "file", source: "./certs/haproxy.crt", destination: "/home/vagrant/haproxy.crt"
     end
-    master.vm.provision "shell", path: "scripts/master.sh", args: [x.fetch('network_mode'),x.fetch('sslenabled'),x.fetch('ip').fetch('server'),x.fetch('server').fetch('count'),x.fetch('ip').fetch('master'), x.fetch('version')]
+    master.vm.provision "shell", path: "scripts/master.sh", args: [x.fetch('network_mode'),x.fetch('sslenabled'),x.fetch('ip').fetch('server'),x.fetch('server').fetch('count'),x.fetch('ip').fetch('master'),x.fetch('version'),
+      x.fetch('tld')]
     if File.file?(x.fetch('keys').fetch('private_key'))
        master.vm.provision "file", source: x.fetch('keys').fetch('private_key'), destination: "/home/vagrant/.ssh/id_rsa"
     end
-    if File.file?(x.fetch('keys').fetch('public_key')) 
+    if File.file?(x.fetch('keys').fetch('public_key'))
        public_key = File.read(x.fetch('keys').fetch('public_key'))
        master.vm.provision :shell, :inline =>"
          echo 'Copying SSH Keys to the VM'
@@ -48,11 +53,14 @@ Vagrant.configure(2) do |config|
 
   server_ip = IPAddr.new(x.fetch('ip').fetch('server'))
   (1..x.fetch('server').fetch('count')).each do |i|
-    c = x.fetch('server')
     hostname = "server-%02d" % i
     config.vm.define hostname do |server|
-      server.vm.box= "chrisurwin/RancherOS"
+      c = x.fetch('server')
+      server.vbguest.auto_update = false
+      server.ssh.private_key_path = File.expand_path(x.fetch('keys').fetch('private_key'))
+      server.vm.box= x.fetch('ROS_box')
       server.vm.guest = :linux
+      server.vm.synced_folder ".", "/vagrant", disabled: true
       server.vm.provider :virtualbox do |v|
         v.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
         v.cpus = c.fetch('cpus')
@@ -60,13 +68,18 @@ Vagrant.configure(2) do |config|
         v.memory = c.fetch('memory')
         v.name = hostname
       end
-      server.vm.network x.fetch('net').fetch('network_type'), ip: IPAddr.new(server_ip.to_i + i - 1, Socket::AF_INET).to_s, nic_type: $private_nic_type
+      if x.fetch('net').fetch('network_type') == "public_network"
+        server.vm.network x.fetch('net').fetch('network_type'), ip: IPAddr.new(server_ip.to_i + i - 1, Socket::AF_INET).to_s, nic_type: $private_nic_type, bridge: x.fetch('net').fetch('bridge'), bootproto: 'static', gateway: x.fetch('net').fetch('gateway')
+      else
+        server.vm.network x.fetch('net').fetch('network_type'), ip: IPAddr.new(server_ip.to_i + i - 1, Socket::AF_INET).to_s, nic_type: $private_nic_type
+      end
       server.vm.hostname = hostname
-      server.vm.provision "shell", path: "scripts/configure_rancher_server.sh", args: [x.fetch('ip').fetch('master'), x.fetch('orchestrator'), i, x.fetch('version'), x.fetch('network_mode'), x.fetch('sslenabled'), x.fetch('ssldns'), x.fetch('ip').fetch('master'), x.fetch('rancher_env_vars')]
+      server.vm.provision "shell", path: "scripts/configure_rancher_server.sh", args: [x.fetch('ip').fetch('master'), x.fetch('orchestrator'), i, x.fetch('version'), x.fetch('network_mode'), x.fetch('sslenabled'), x.fetch('ip').fetch('master'), x.fetch('rancher_env_vars'),
+         x.fetch('env_name')]
       if File.file?(x.fetch('keys').fetch('private_key'))
         config.vm.provision "file", source: x.fetch('keys').fetch('private_key'), destination: "/home/rancher/.ssh/id_rsa"
       end
-      if File.file?(x.fetch('keys').fetch('public_key')) 
+      if File.file?(x.fetch('keys').fetch('public_key'))
         public_key = File.read(x.fetch('keys').fetch('public_key'))
         server.vm.provision :shell, :inline =>"
           echo 'Copying SSH Keys to the VM'
@@ -83,9 +96,11 @@ Vagrant.configure(2) do |config|
   (1..x.fetch('node').fetch('count')).each do |i|
     c = x.fetch('node')
     hostname = "node-%02d" % i
+    ip = IPAddr.new(node_ip.to_i + i - 1, Socket::AF_INET).to_s
     config.vm.define hostname do |node|
-      node.vm.box   = "chrisurwin/RancherOS"
-      node.vm.box_version = x.fetch('ROS_version')
+      node.vbguest.auto_update = false
+      node.ssh.private_key_path = File.expand_path(x.fetch('keys').fetch('private_key'))
+      node.vm.box= x.fetch('ROS_box')
       node.vm.guest = :linux
       node.vm.provider "virtualbox" do |v|
         v.cpus = c.fetch('cpus')
@@ -93,16 +108,22 @@ Vagrant.configure(2) do |config|
         v.memory = c.fetch('memory')
         v.name = hostname
       end
+      node.vm.synced_folder ".", "/vagrant", disabled: true
       if x.fetch('sslenabled')
-         node.vm.provision "file", source: "./certs/ca.crt", destination: "/home/rancher/ca.crt"
+        node.vm.provision "file", source: "./certs/ca.crt", destination: "/home/rancher/ca.crt"
       end
-      node.vm.network x.fetch('net').fetch('network_type'), ip: IPAddr.new(node_ip.to_i + i - 1, Socket::AF_INET).to_s, nic_type: $private_nic_type
+      if x.fetch('net').fetch('network_type') == "public_network"
+        node.vm.network x.fetch('net').fetch('network_type'), ip: ip, nic_type: $private_nic_type, bridge: x.fetch('net').fetch('bridge'), bootproto: 'static', gateway: x.fetch('net').fetch('gateway')
+      else
+        node.vm.network x.fetch('net').fetch('network_type'), ip: ip, nic_type: $private_nic_type
+      end
       node.vm.hostname = hostname
-      node.vm.provision "shell", path: "scripts/configure_rancher_node.sh", args: [x.fetch('ip').fetch('master'), x.fetch('orchestrator'), x.fetch('network_mode'), x.fetch('sslenabled'), x.fetch('ssldns'), x.fetch('ip').fetch('master')]
+      node.vm.provision "shell", path: "scripts/configure_rancher_node.sh", args: [x.fetch('ip').fetch('master'), x.fetch('orchestrator'), x.fetch('network_mode'), x.fetch('sslenabled'), x.fetch('ip').fetch('master'),
+        x.fetch('env_name'), ip ]
       if File.file?(x.fetch('keys').fetch('private_key'))
         config.vm.provision "file", source: x.fetch('keys').fetch('private_key'), destination: "/home/rancher/.ssh/id_rsa"
       end
-      if File.file?(x.fetch('keys').fetch('public_key')) 
+      if File.file?(x.fetch('keys').fetch('public_key'))
         public_key = File.read(x.fetch('keys').fetch('public_key'))
         node.vm.provision :shell, :inline =>"
           echo 'Copying SSH Keys to the VM'

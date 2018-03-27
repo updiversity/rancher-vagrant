@@ -6,9 +6,9 @@ node=${3:-3}
 rancher_server_version=${4:-stable}
 network_type=${5:-false}
 sslenabled=${6:-false}
-ssldns=${7:-server.rancher.vagrant}
-cache_ip=${8:-172.22.101.100}
-rancher_env_vars=${9}
+cache_ip=${7:-172.22.101.100}
+rancher_env_vars=${8}
+env_name=${9:-cattle}
 registry_prefix="rancher"
 curl_prefix="appropriate"
 
@@ -38,15 +38,11 @@ fi
 system-docker restart docker
 sleep 5
 
-if [ "$network_type" == "isolated" ] || [ "$network_type" == "airgap" ] ; then
-  ros config set rancher.network.dns.nameservers ["'$cache_ip'"]
-  system-docker restart network
-  route add default gw $cache_ip
-fi
+ros config set rancher.network.dns.nameservers ["'$cache_ip'"]
+system-docker restart network
 
-if [ "$sslenabled" == 'true' ]; then
-  ros config set rancher.network.dns.nameservers ["'$cache_ip'"]
-  system-docker restart network
+if [ "$network_type" == "isolated" ] || [ "$network_type" == "airgap" ] ; then
+  route add default gw $cache_ip
 fi
 
 SUSPEND=n
@@ -58,15 +54,15 @@ if [ "$network_type" == "isolated" ]; then
  -e https_proxy='http://$cache_ip:3128' \
  -e HTTP_PROXY='http://$cache_ip:3128' \
  -e HTTPS_PROXY='http://$cache_ip:3128' \
- -e no_proxy='server.rancher.vagrant,localhost,127.0.0.1' \
- -e NO_PROXY='server.rancher.vagrant,localhost,127.0.0.1'"
+ -e no_proxy='localhost,127.0.0.1' \
+ -e NO_PROXY='localhost,127.0.0.1'"
 fi
 rancher_command=""
 if [ "$network_type" == "airgap" ]; then
   EXTRA_OPTS="-e CATTLE_BOOTSTRAP_REQUIRED_IMAGE=$cache_ip:5000/rancher/agent:v1.2.5"
-  rancher_command="$registry_prefix/rancher/server:$rancher_server_version" 
+  rancher_command="$registry_prefix/rancher/server:$rancher_server_version"
 else
-  rancher_command="rancher/server:$rancher_server_version" 
+  rancher_command="rancher/server:$rancher_server_version"
 fi
 
 echo Installing Rancher Server
@@ -88,6 +84,13 @@ sudo docker run -d --restart=always \
  --db-pass cattle \
  --advertise-address `ifconfig eth1 | grep 'inet addr:' | cut -d: -f2 | awk '{ print $1}'`
 
+if [ -z "${RANCHER_ACCESS_KEY}" ] || [ -z "${RANCHER_SECRET_KEY}" ]; then
+  echo Using Rancher API without Key
+  rancher_api_auth=""
+else
+  rancher_api_auth="-u ${RANCHER_ACCESS_KEY}:${RANCHER_SECRET_KEY}"
+fi
+
 if [ $node -eq 1 ]; then
   # wait until rancher server is ready
   while true; do
@@ -101,6 +104,7 @@ if [ $node -eq 1 ]; then
  docker run \
     --rm \
     $curl_prefix/curl \
+      $rancher_api_auth \
       -sLk \
       -X POST \
       -H 'Accept: application/json' \
@@ -113,6 +117,7 @@ if [ $node -eq 1 ]; then
  docker run \
     --rm \
     $curl_prefix/curl \
+      $rancher_api_auth \
       -sLk \
       -X POST \
       -H 'Accept: application/json' \
@@ -128,6 +133,7 @@ while true; do
     -v /tmp:/tmp \
     --rm \
     $curl_prefix/curl \
+      $rancher_api_auth \
       -sLk \
         "$protocol://$rancher_server_ip/v2-beta/projectTemplates?name=$orchestrator" | jq '.data[0].id' | tr -d '"')
 
@@ -144,20 +150,22 @@ docker run \
   -v /tmp:/tmp \
   --rm \
   $curl_prefix/curl \
+    $rancher_api_auth \
     -sLk \
     -X POST \
     -H 'Accept: application/json' \
     -H 'Content-Type: application/json' \
-    -d "{\"description\":\"$orchestrator\",\"name\":\"$orchestrator\",\"projectTemplateId\":\"$ENV_TEMPLATE_ID\",\"allowSystemRole\":false,\"members\":[],\"virtualMachine\":false,\"servicesPortRange\":null}" \
+    -d "{\"description\":\"$env_name\",\"name\":\"$env_name\",\"projectTemplateId\":\"$ENV_TEMPLATE_ID\",\"allowSystemRole\":false,\"members\":[],\"virtualMachine\":false,\"servicesPortRange\":null}" \
       "$protocol://$rancher_server_ip/v2-beta/projects"
 
 # lookup default environment id
-DEFAULT_ENV_ID=$(docker run -v /tmp:/tmp --rm $curl_prefix/curl -sLk "$protocol://$rancher_server_ip/v2-beta/project?name=Default" | jq '.data[0].id' | tr -d '"')
+DEFAULT_ENV_ID=$(docker run -v /tmp:/tmp --rm $curl_prefix/curl $rancher_api_auth \-sLk "$protocol://$rancher_server_ip/v2-beta/project?name=Default" | jq '.data[0].id' | tr -d '"')
 
 # delete default environment
 docker run \
   --rm \
   $curl_prefix/curl \
+    $rancher_api_auth \
     -sLk \
     -X DELETE \
     -H 'Accept: application/json' \

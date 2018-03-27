@@ -9,6 +9,7 @@ sslenabled=${6:-false}
 cache_ip=${7:-172.22.101.100}
 rancher_env_vars=${8}
 env_name=${9:-cattle}
+
 registry_prefix="rancher"
 curl_prefix="appropriate"
 

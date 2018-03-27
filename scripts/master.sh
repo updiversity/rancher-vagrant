@@ -6,6 +6,7 @@ rancher_server_node=${4:-1}
 cache_ip=${5:-172.22.101.100}
 rancher_server_version=${6:-latest}
 tld=${7:-rancher.vagrant}
+
 password=${8:-rancher}
 
 apt-get update

@@ -17,7 +17,16 @@ Vagrant.configure(2) do |config|
     master.vm.box = "williamyeh/ubuntu-trusty64-docker"
     master.vm.guest = :ubuntu
     if x.fetch('net').fetch('network_type') == "public_network"
-      master.vm.network x.fetch('net').fetch('network_type'), ip: x.fetch('ip').fetch('master'), nic_type: $private_nic_type,  bridge: x.fetch('net').fetch('bridge'), bootproto: 'static', gateway: x.fetch('net').fetch('gateway')
+      gw = x.fetch('net').fetch('gateway')
+      master.vm.network x.fetch('net').fetch('network_type'), ip: x.fetch('ip').fetch('master'), nic_type: $private_nic_type,  bridge: x.fetch('net').fetch('bridge'),
+        bootproto: 'static'
+      master.vm.provision "shell",
+        run: "always",
+        inline: "route add default gw #{gw}"
+        # delete default gw on eth0
+      master.vm.provision "shell",
+        run: "always",
+        inline: "eval `route -n | awk '{ if ($8 ==\"eth0\" && $2 != \"0.0.0.0\") print \"route del default gw \" $2; }'`"
     else
       master.vm.network x.fetch('net').fetch('network_type'), ip: x.fetch('ip').fetch('master'), nic_type: $private_nic_type
     end
@@ -70,7 +79,16 @@ Vagrant.configure(2) do |config|
         v.name = hostname
       end
       if x.fetch('net').fetch('network_type') == "public_network"
-        server.vm.network x.fetch('net').fetch('network_type'), ip: IPAddr.new(server_ip.to_i + i - 1, Socket::AF_INET).to_s, nic_type: $private_nic_type, bridge: x.fetch('net').fetch('bridge'), bootproto: 'static', gateway: x.fetch('net').fetch('gateway')
+        gw = x.fetch('net').fetch('gateway')
+        server.vm.network x.fetch('net').fetch('network_type'), ip: IPAddr.new(server_ip.to_i + i - 1, Socket::AF_INET).to_s, nic_type: $private_nic_type, bridge: x.fetch('net').fetch('bridge'),
+          bootproto: 'static'
+        server.vm.provision "shell",
+          run: "always",
+          inline: "route add default gw #{gw}"
+        # delete default gw on eth0
+        server.vm.provision "shell",
+          run: "always",
+          inline: "eval `route -n | awk '{ if ($8 ==\"eth0\" && $2 != \"0.0.0.0\") print \"route del default gw \" $2; }'`"
       else
         server.vm.network x.fetch('net').fetch('network_type'), ip: IPAddr.new(server_ip.to_i + i - 1, Socket::AF_INET).to_s, nic_type: $private_nic_type
       end
@@ -115,7 +133,16 @@ Vagrant.configure(2) do |config|
         node.vm.provision "file", source: "./certs/ca.crt", destination: "/home/rancher/ca.crt"
       end
       if x.fetch('net').fetch('network_type') == "public_network"
-        node.vm.network x.fetch('net').fetch('network_type'), ip: ip, nic_type: $private_nic_type, bridge: x.fetch('net').fetch('bridge'), bootproto: 'static', gateway: x.fetch('net').fetch('gateway')
+        gw = x.fetch('net').fetch('gateway')
+        node.vm.network x.fetch('net').fetch('network_type'), ip: ip, nic_type: $private_nic_type, bridge: x.fetch('net').fetch('bridge'),
+          bootproto: 'static'
+        node.vm.provision "shell",
+          run: "always",
+          inline: "route add default gw #{gw}"
+          # delete default gw on eth0
+        node.vm.provision "shell",
+          run: "always",
+          inline: "eval `route -n | awk '{ if ($8 ==\"eth0\" && $2 != \"0.0.0.0\") print \"route del default gw \" $2; }'`"
       else
         node.vm.network x.fetch('net').fetch('network_type'), ip: ip, nic_type: $private_nic_type
       end

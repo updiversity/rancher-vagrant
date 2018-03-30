@@ -6,8 +6,8 @@ rancher_server_node=${4:-1}
 cache_ip=${5:-172.22.101.100}
 rancher_server_version=${6:-latest}
 tld=${7:-rancher.vagrant}
-
-password=${8:-rancher}
+tsig_key=${8:-""}
+password=${9:-rancher}
 
 apt-get update
 apt-get install jq
@@ -221,44 +221,38 @@ echo    "
 include \"/etc/bind/named.conf.local\";
 acl goodclients {
         $cache_ip/24;
-        localhost;
-        localnets;
 };
 
 options {
 
-        recursion yes;
+        recursion no;
         allow-query { goodclients; };
 
-        forwarders {
-          8.8.8.8;
-          8.8.4.4;
-        };
-
-        dnssec-enable no;
-        dnssec-validation no;
+        allow-transfer {"none";};
+        allow-recursion {"none";};
 
         auth-nxdomain no;    # conform to RFC1035
         listen-on-v6 { any; };
 };" > /root/bind.conf
 
-echo "        zone \"rancher.$tld\" {
+echo "
+zone \"rancher.$tld\" {
              type master;
              file \"/etc/bind/db.rancher.$tld\";
         };" > /root/named.conf.local
 
 echo ";
-; BIND data file for local loopback interface
+; BIND data file
 ;
-\$TTL    604800
-@       IN      SOA     rancher.$tld. admin.rancher.$tld. (
-                              1         ; Serial
+\$TTL    60
+@       IN      SOA     ns.rancher.$tld. admin.$tld. (
+                              2         ; Serial
                          604800         ; Refresh
                           86400         ; Retry
                         2419200         ; Expire
                          604800 )       ; Negative Cache TTL
-;
-@       IN      NS      rancher.$tld.
+@       IN      NS      ns.rancher.$tld.
+ns.rancher.$tld.     IN      A       $cache_ip
 rancher.$tld.     IN      A       $cache_ip" > /root/db.rancher.$tld
 
 docker run -d --restart=always --name bind9 -p 53:53 -p 53:53/udp -v /root/named.conf.local:/etc/bind/named.conf.local -v /root/bind.conf:/etc/bind/named.conf -v /root/db.rancher.$tld:/etc/bind/db.rancher.$tld resystit/bind9:latest

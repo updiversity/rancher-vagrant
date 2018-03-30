@@ -22,7 +22,7 @@ Vagrant.configure(2) do |config|
         bootproto: 'static'
       master.vm.provision "shell",
         run: "always",
-        inline: "route add default gw #{gw}"
+        inline: "route add default gw #{gw}; true"
         # delete default gw on eth0
       master.vm.provision "shell",
         run: "always",
@@ -44,7 +44,7 @@ Vagrant.configure(2) do |config|
        master.vm.provision "file", source: "./certs/haproxy.crt", destination: "/home/vagrant/haproxy.crt"
     end
     master.vm.provision "shell", path: "scripts/master.sh", args: [x.fetch('network_mode'),x.fetch('sslenabled'),x.fetch('ip').fetch('server'),x.fetch('server').fetch('count'),x.fetch('ip').fetch('master'),x.fetch('version'),
-      x.fetch('tld')]
+      x.fetch('tld'), x.fetch('tsig_key')]
     if File.file?(x.fetch('keys').fetch('private_key'))
        master.vm.provision "file", source: x.fetch('keys').fetch('private_key'), destination: "/home/vagrant/.ssh/id_rsa"
     end

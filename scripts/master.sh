@@ -6,8 +6,7 @@ rancher_server_node=${4:-1}
 cache_ip=${5:-172.22.101.100}
 rancher_server_version=${6:-latest}
 tld=${7:-rancher.vagrant}
-tsig_key=${8:-""}
-password=${9:-rancher}
+password=${8:-rancher}
 
 apt-get update
 apt-get install jq
@@ -224,12 +223,8 @@ acl goodclients {
 };
 
 options {
-
-        recursion no;
+	directory \"/var/bind\";
         allow-query { goodclients; };
-
-        allow-transfer {"none";};
-        allow-recursion {"none";};
 
         auth-nxdomain no;    # conform to RFC1035
         listen-on-v6 { any; };
@@ -238,14 +233,14 @@ options {
 echo "
 zone \"rancher.$tld\" {
              type master;
-             file \"/etc/bind/db.rancher.$tld\";
+             file \"/var/bind/db.rancher.$tld\";
         };" > /root/named.conf.local
 
 echo ";
 ; BIND data file
 ;
 \$TTL    60
-@       IN      SOA     ns.rancher.$tld. admin.$tld. (
+@       IN      SOA     ns.rancher.$tld. admin.rancher.$tld. (
                               2         ; Serial
                          604800         ; Refresh
                           86400         ; Retry
@@ -255,7 +250,7 @@ echo ";
 ns.rancher.$tld.     IN      A       $cache_ip
 rancher.$tld.     IN      A       $cache_ip" > /root/db.rancher.$tld
 
-docker run -d --restart=always --name bind9 -p 53:53 -p 53:53/udp -v /root/named.conf.local:/etc/bind/named.conf.local -v /root/bind.conf:/etc/bind/named.conf -v /root/db.rancher.$tld:/etc/bind/db.rancher.$tld resystit/bind9:latest
+docker run -d --restart=always --name bind9 -p 53:53 -p 53:53/udp -v /root/named.conf.local:/etc/bind/named.conf.local -v /root/bind.conf:/etc/bind/named.conf -v /root/db.rancher.$tld:/var/bind/db.rancher.$tld resystit/bind9:latest
 
 if [ "$network_mode" == "airgap" ] ; then
 

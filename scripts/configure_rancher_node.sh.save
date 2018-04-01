@@ -62,9 +62,8 @@ tRubyXjH+dQQftBUuzwULwwKGL0le7o/vA==
 -----END CERTIFICATE-----" > /var/lib/rancher/etc/ssl/ca.crt
 fi
 
-ros config set rancher.network.dns.nameservers ["'$cache_ip'"]
+ros config set rancher.network.dns.nameservers ["''"]
 system-docker restart network
-sleep 15
 
 if [ "$network_type" == "isolated" ] || [ "$network_type" == "airgap" ] ; then
   route add default gw $cache_ip

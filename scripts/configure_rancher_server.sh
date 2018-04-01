@@ -37,10 +37,11 @@ if [ ! "$network_type" == "airgap" ] ; then
 fi
 
 system-docker restart docker
-sleep 5
+sleep 15
 
 ros config set rancher.network.dns.nameservers ["'$cache_ip'"]
 system-docker restart network
+sleep 15
 
 if [ "$network_type" == "isolated" ] || [ "$network_type" == "airgap" ] ; then
   route add default gw $cache_ip
